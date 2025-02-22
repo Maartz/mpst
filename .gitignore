@@ -1,0 +1,4 @@
+public/
+.clj-kondo
+.cpcache
+.lsp

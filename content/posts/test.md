@@ -1,3 +1,4 @@
+---
 Title: My First Post
 Date: 2025-02-22
 Slug: test
