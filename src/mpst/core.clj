@@ -64,30 +64,30 @@
       process-links
       markdown/md-to-html-string))
 
+(defn format-date [date]
+  (let [datetime (if (string? date)
+                   (fmt/parse (fmt/formatter "yyyy-MM-dd") date)
+                   date)]
+    {:datetime (fmt/unparse (fmt/formatter "yyyy-MM-dd") datetime)
+     :display (fmt/unparse (fmt/formatter "MMMM d, yyyy") datetime)}))
+
 ;; Function to generate a blog post page using Hiccup
 (defn blog-post-page [{:keys [title date _slug content]}]
-  (html5
-   [:head
-    [:title (str title)]  ; Ensure title is a string
-    [:meta {:charset "UTF-8"}]
-    [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0"}]
-    [:style "body { max-width: 800px; margin: 0 auto; padding: 1rem; font-family: system-ui; line-height: 1.5; }"]]
-   [:body
-    [:header
-     [:h1 (str title)]  ; Ensure title is a string
-     [:time
-      {:datetime (fmt/unparse (fmt/formatter "yyyy-MM-dd")
-                              (if (string? date)
-                                (fmt/parse (fmt/formatter "yyyy-MM-dd") date)
-                                date))}
-      (fmt/unparse (fmt/formatter "MMMM d, yyyy")
-                   (if (string? date)
-                     (fmt/parse (fmt/formatter "yyyy-MM-dd") date)
-                     date))]]
-    [:main
-     [:article
-      [:div {:class "content"}
-       [:div content]]]]]))  ; Ensure content is a string
+  (let [formatted-date (format-date date)]
+    (html5
+     [:head
+      [:title (str title)]  ; Ensure title is a string
+      [:meta {:charset "UTF-8"}]
+      [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0"}]
+      [:style "body { max-width: 800px; margin: 0 auto; padding: 1rem; font-family: system-ui; line-height: 1.5; } .post-date { color: #666 margin-bottom: 2rem}"]]
+     [:body
+      [:header
+       [:h1 (str title)]  ; Ensure title is a string
+       [:time {:class "post-date" :datetime (:datetime formatted-date)} (:display formatted-date)]]
+      [:main
+       [:article
+        [:div {:class "content"}
+         [:div content]]]]])))  ; Ensure content is a string
 
 ;; Helper function to check if a file is a markdown file
 (defn markdown-file? [^File file]
