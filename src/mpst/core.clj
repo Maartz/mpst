@@ -49,9 +49,20 @@
                   :slug (sanitize-filename (.getName file))}
        :content ""})))
 
+(defn process-links [content]
+  (let [link-pattern #"\[([^\]]+)\]\(([^)]+)\)"
+        processed (str/replace content link-pattern
+                               (fn [[_ text url]]
+                                 (if (str/starts-with? url "/posts/")
+                                   (str "[" text "](" url ")")
+                                   (str "[" text "](" url "){:target=_blank}"))))]
+    processed))
+
 ;; Function to convert Markdown to HTML
 (defn markdown->hiccup [md]
-  (markdown/md-to-html-string md))
+  (-> md
+      process-links
+      markdown/md-to-html-string))
 
 ;; Function to generate a blog post page using Hiccup
 (defn blog-post-page [{:keys [title date _slug content]}]
