@@ -22,10 +22,18 @@
       (str/replace #"\s+" "-")
       str/lower-case))
 
+(defn sanitize-title [filename]
+  (-> filename
+      (str/replace #"\.md$" "")
+      (str/replace #"-" " ")
+      str/trim
+      str/capitalize))
+
 (defn read-markdown-file [file]
   (try
     (let [content (slurp file)
           filename (sanitize-filename (.getName file))
+          default-title (sanitize-title (.getName file))
           front-matter-pattern #"(?s)^---\n(.*?)\n---\n(.*)"  ; (?s) makes . match newlines too
           match (re-find front-matter-pattern content)]
       (if match
@@ -33,18 +41,18 @@
               metadata (try
                          (read-string (str "{" front-matter "}"))
                          (catch Exception e
-                           {:title (.getName file)
+                           {:title default-title
                             :date (time/now)
                             :slug filename}))]
           {:metadata (update metadata :slug #(or % filename))
            :content (or body "")})
-        {:metadata {:title (.getName file)
+        {:metadata {:title default-title
                     :date (time/now)
                     :slug filename}
          :content content}))
     (catch Exception e
       (println "Error reading" (.getName file) "-" (.getMessage e))
-      {:metadata {:title (.getName file)
+      {:metadata {:title (sanitize-title (.getName file))
                   :date (time/now)
                   :slug (sanitize-filename (.getName file))}
        :content ""})))
@@ -55,14 +63,15 @@
                                (fn [[_ text url]]
                                  (if (str/starts-with? url "/posts/")
                                    (str "[" text "](" url ")")
-                                   (str "[" text "](" url "){:target=_blank}"))))]
+                                   (format "<a href=\"%s\" target=\"_blank\">%s</a>" url text))))]
+
     processed))
 
 ;; Function to convert Markdown to HTML
 (defn markdown->hiccup [md]
-  (-> md
-      process-links
-      markdown/md-to-html-string))
+  (let [processed-content (process-links md)
+        html-content (markdown/md-to-html-string processed-content)]
+    html-content))
 
 (defn format-date [date]
   (let [datetime (if (string? date)
