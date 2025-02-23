@@ -6,7 +6,33 @@
             [clojure.java.io :as io]
             [hiccup.page :refer [html5]]
             [mpst.server :as server])
-  (:import [java.io File]))
+  (:import [java.io File] [java.nio.file Path Paths StandardWatchEventKinds FileSystems]))
+
+(defn clean-public-dir []
+  (println "🧹 Cleaning public directory...")
+  (let [public-dir (io/file "public")]
+    (when (.exists public-dir)
+      (doseq [file (reverse (file-seq public-dir))]
+        (when (.exists file)
+          (.delete file))))))
+
+(defn create-file-watcher [dir callback]
+  (let [path (.toPath (io/file dir))
+        watch-service (.newWatchService (FileSystems/getDefault))
+        events [StandardWatchEventKinds/ENTRY_CREATE
+                StandardWatchEventKinds/ENTRY_DELETE
+                StandardWatchEventKinds/ENTRY_MODIFY]]
+    (.register path watch-service (into-array events))
+    (future
+      (try
+        (while true
+          (let [key (.take watch-service)]
+            (doseq [event (.pollEvents key)]
+
+              (callback (.context event)))
+
+            (.reset key)))
+        (catch InterruptedException _ (println "File watcher stopped"))))))
 
 ;; Ensure directory exists
 (defn ensure-directory-exists [dir]
@@ -143,15 +169,40 @@
   (when-not (->> "public/posts/" io/file .list seq)
     (generate-static-files)))
 
+(defn handle-file-change [event]
+  (println "Detected change in:" event)
+  (clean-public-dir)
+  (generate-static-files))
+
 ;; Entry point to start the server and ensure static files are generated
-(defn -main []
+(defn dev-mode []
+  (println "Starting development mode...")
+  (clean-public-dir)
+  (generate-static-files)
+  (let [content-watcher (create-file-watcher "content/posts"
+                                             (fn [_]
+                                               (println "Rebuilding site...")
+                                               (handle-file-change _)))]
+    (try
+      (server/-main)
+      (catch Exception e
+        (println "Error in development mode:" (.getMessage e))
+        (future-cancel content-watcher)))))
+
+;; Enhanced main function with development mode support
+(defn -main [& args]
   (try
-    (ensure-directory-exists "content/posts")  ; Create posts directory if it doesn't exist
-    (ensure-directory-exists "public/posts")   ; Create public directory if it doesn't exist
-    (println "Generating static files...")
-    (ensure-generated)
-    (println "Starting server...")
-    (mpst.server/-main)
+    (ensure-directory-exists "content/posts")
+    (ensure-directory-exists "public/posts")
+
+    (if (some #{"--dev"} args)
+      (dev-mode)
+      (do
+        (println "Generating static files...")
+        (clean-public-dir)
+        (generate-static-files)
+        (println "Starting server...")
+        (server/-main)))
     (catch Exception e
       (println "Error starting application:" (.getMessage e))
       (System/exit 1))))
